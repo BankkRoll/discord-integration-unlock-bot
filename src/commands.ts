@@ -1,3 +1,4 @@
+// src/commands.ts
 import { SlashCommandBuilder } from "@discordjs/builders";
 
 export const commands = [

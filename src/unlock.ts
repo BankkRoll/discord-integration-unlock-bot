@@ -1,3 +1,4 @@
+// src/unlock.ts
 import { Web3Service } from "@unlock-protocol/unlock-js";
 import { config } from "./config";
 import { networks } from "@unlock-protocol/networks";

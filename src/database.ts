@@ -1,81 +1,43 @@
-import { DataTypes, Sequelize, ModelDefined, Model } from "sequelize";
-import { config } from "./config";
+// src/database.js
+const Enmap = require("enmap");
 
-export const sequelize = new Sequelize(
-  config.databaseURL!,
-  process.env.ON_HEROKU
-    ? {
-        ssl: true,
-        dialectOptions: {
-          ssl: {
-            require: true,
-            rejectUnauthorized: false,
-          },
-        },
-      }
-    : {}
-);
-
-export interface User {
-  id: string;
-  walletAddresses: string[];
-}
-
-export const User = sequelize.define<Model<User>>("Users", {
-  id: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    primaryKey: true,
-  },
-  walletAddresses: {
-    type: DataTypes.ARRAY(DataTypes.STRING),
-    allowNull: false,
-  },
+// Enmap for users
+export const users = new Enmap({
+  name: "users",
+  fetchAll: false,
+  autoFetch: true,
+  cloneLevel: "deep",
 });
 
-export interface Nounce {
-  id: string;
-  userId?: string;
-}
-
-export const Nounce = sequelize.define<Model<Nounce>>("Nounce", {
-  id: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    primaryKey: true,
-  },
-  userId: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
+// Enmap for nounces
+export const nounces = new Enmap({
+  name: "nounces",
+  fetchAll: false,
+  autoFetch: true,
+  cloneLevel: "deep",
 });
 
+// Function to append a wallet address to a user
 export async function appendWalletAddress(
   userId: string,
   walletAddress: string
 ) {
-  const user = await User.findOne({
-    where: {
-      id: userId,
-    },
-  });
+  let user = users.get(userId) || { id: userId, walletAddresses: [] };
 
-  if (!user) {
-    return User.create({
-      id: userId,
-      walletAddresses: [walletAddress],
-    });
+  const walletAddresses = new Set(user.walletAddresses);
+  walletAddresses.add(walletAddress);
+
+  users.set(userId, { ...user, walletAddresses: Array.from(walletAddresses) });
+}
+
+// Function to create or update a nounce
+export async function upsertNounce(id: string, userId: string | null) {
+  let nounce = nounces.get(id) || { id };
+
+  if (userId) {
+    nounce.userId = userId;
   }
-  return user.update(
-    {
-      walletAddresses: [
-        ...new Set([...user.toJSON().walletAddresses, walletAddress]),
-      ],
-    },
-    {
-      where: {
-        id: userId,
-      },
-    }
-  );
+
+  nounces.set(id, nounce);
+  return nounce;
 }

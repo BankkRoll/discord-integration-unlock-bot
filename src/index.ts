@@ -1,3 +1,4 @@
+// src/index.ts
 import Fastify from "fastify";
 import DiscordOauth from "discord-oauth2";
 import { config } from "./config";
@@ -11,8 +12,9 @@ import {
   ButtonInteraction,
   GuildMemberRoleManager,
   CommandInteraction,
+  TextChannel,
 } from "discord.js";
-import { sequelize, Nounce, User, appendWalletAddress } from "./database";
+import { users, nounces, appendWalletAddress, upsertNounce } from "./database";
 import { hasMembership } from "./unlock";
 import { ethers } from "ethers";
 import { REST } from "@discordjs/rest";
@@ -41,7 +43,8 @@ const fetchStatusFromSignature = async ({
       status,
       walletAddress,
     };
-  } catch {
+  } catch (error) {
+    console.error("Error in signature verification: ", error);
     return {
       status: false,
       walletAddress: null,
@@ -67,8 +70,8 @@ const fastify = Fastify({
 });
 
 fastify.addHook("onClose", async (_, done) => {
-  await sequelize.close();
   await client.destroy();
+  done();
 });
 
 fastify.register(cookie, {
@@ -88,25 +91,19 @@ async function unlockInteractionHandler(interaction: ButtonInteraction) {
 
   if (hasRole) {
     await interaction.editReply({
-      content: `You are already a member of Unlock Community, ${interaction.member?.user}. You can send messages.`,
+      content: `You are already a member of ${config.serverName}, ${interaction.member?.user}. You can send messages.`,
     });
     return;
   }
-  const user = await User.findOne({
-    where: {
-      id: interaction.member?.user.id,
-    },
-  });
+
+  const userId = interaction.member?.user.id;
+  const user = users.get(userId);
 
   if (!user) {
-    const [nounce] = await Nounce.upsert({
-      id: crypto.randomUUID(),
-      userId: interaction.member!.user.id,
-    });
+    const nounceId = crypto.randomUUID();
+    upsertNounce(nounceId, userId || null);
 
-    const nounceData = nounce.toJSON();
-
-    const checkoutURL = new URL(`/checkout/${nounceData.id}`, config.host!);
+    const checkoutURL = new URL(`/checkout/${nounceId}`, config.host!);
 
     const row = new MessageActionRow().addComponents(
       new MessageButton()
@@ -123,25 +120,28 @@ async function unlockInteractionHandler(interaction: ButtonInteraction) {
     return;
   }
 
-  const { walletAddresses } = user?.toJSON();
+  const walletAddresses = user.walletAddresses || [];
 
   for (const walletAddress of walletAddresses) {
     const validMembership = await hasMembership(walletAddress);
 
     if (validMembership) {
-      let role = interaction.guild?.roles.cache.get(config.roleId);
+      const role =
+        interaction.guild?.roles.cache.get(config.roleId) ||
+        (await interaction.guild?.roles.fetch(config.roleId));
 
-      if (!role) {
-        const fetchedRole = await interaction.guild?.roles.fetch(config.roleId);
-        role = fetchedRole!;
-      }
-
-      await (interaction.member!.roles as GuildMemberRoleManager).add(role);
+      await (interaction.member!.roles as GuildMemberRoleManager).add(
+        role as Role
+      );
 
       await interaction.editReply({
-        content: `You already have a valid Unlock Membership. Welcome to Unlock Community, ${
+        content: `You already have a valid ${
+          config.serverName
+        } Membership. Welcome to ${config.serverName}, ${
           interaction.member!.user
-        }. You can start sending messages now. Head over to <#1052336574211305574> and tell us a little more about yourself.`,
+        }. You can start sending messages now. Head over to <#${
+          config.unlockedChannelId
+        }> and tell us a little more about yourself.`,
       });
       return;
     }
@@ -155,6 +155,7 @@ async function UnlockCommandHandler(interaction: CommandInteraction) {
       content: "Pong!",
     });
   }
+
   if (interaction.commandName === "unlock") {
     await interaction.deferReply({
       ephemeral: true,
@@ -168,25 +169,19 @@ async function UnlockCommandHandler(interaction: CommandInteraction) {
 
     if (hasRole) {
       await interaction.editReply({
-        content: `You are already a member of Unlock Community, ${interaction.member?.user}. You can send messages.`,
+        content: `You are already a member of ${config.serverName}, ${interaction.member?.user}. You can send messages.`,
       });
       return;
     }
-    const user = await User.findOne({
-      where: {
-        id: interaction.member?.user.id,
-      },
-    });
+
+    const userId = interaction.member?.user.id;
+    const user = users.get(userId);
 
     if (!user) {
-      const [nounce] = await Nounce.upsert({
-        id: crypto.randomUUID(),
-        userId: interaction.member!.user.id,
-      });
+      const nounceId = crypto.randomUUID();
+      upsertNounce(nounceId, userId || null);
 
-      const nounceData = nounce.toJSON();
-
-      const checkoutURL = new URL(`/checkout/${nounceData.id}`, config.host!);
+      const checkoutURL = new URL(`/checkout/${nounceId}`, config.host!);
 
       const row = new MessageActionRow().addComponents(
         new MessageButton()
@@ -196,34 +191,34 @@ async function UnlockCommandHandler(interaction: CommandInteraction) {
           .setEmoji("🔑")
       );
       await interaction.editReply({
-        content:
-          "You need to go through the checkout and claim a membership NFT.",
+        content: `You need to go through the checkout and claim a ${config.serverName} membership NFT.`,
         components: [row],
       });
       return;
     }
 
-    const { walletAddresses } = user?.toJSON();
+    const walletAddresses = user.walletAddresses || [];
 
     for (const walletAddress of walletAddresses) {
       const validMembership = await hasMembership(walletAddress);
 
       if (validMembership) {
-        let role = interaction.guild?.roles.cache.get(config.roleId);
+        const fetchedRole =
+          interaction.guild?.roles.cache.get(config.roleId) ||
+          (await interaction.guild?.roles.fetch(config.roleId));
 
-        if (!role) {
-          const fetchedRole = await interaction.guild?.roles.fetch(
-            config.roleId
-          );
-          role = fetchedRole!;
-        }
-
-        await (interaction.member!.roles as GuildMemberRoleManager).add(role);
+        await (interaction.member!.roles as GuildMemberRoleManager).add(
+          fetchedRole as Role
+        );
 
         await interaction.editReply({
-          content: `You already have a valid Unlock Membership. Welcome to Unlock Community, ${
+          content: `You already have a valid ${
+            config.serverName
+          } Membership. Welcome to ${config.serverName}, ${
             interaction.member!.user
-          }. You can start sending messages now. Head over to <#1052336574211305574> and tell us a little more about yourself.`,
+          }. You can start sending messages now. Head over to <#${
+            config.unlockedChannelId
+          }> and tell us a little more about yourself.`,
         });
         return;
       }
@@ -236,6 +231,9 @@ fastify.get<{
     nounce: string;
   };
 }>("/checkout/:nounce", async (request, response) => {
+  fastify.log.info(
+    `Checkout request received. Nounce: ${request.params.nounce}`
+  );
   const checkoutURL = new URL("/checkout", "https://app.unlock-protocol.com");
   checkoutURL.searchParams.set(
     "paywallConfig",
@@ -253,6 +251,8 @@ fastify.get<{
       new URL("/membership", config.host!).toString()
     );
   }
+
+  fastify.log.info(`Redirecting user to: ${checkoutURL.toString()}`);
   return response.redirect(checkoutURL.toString());
 });
 
@@ -264,46 +264,41 @@ fastify.get<{
     signature: string;
   };
 }>("/access/:nounce", async (request, response) => {
-  const nounce = await Nounce.findOne({
-    where: {
-      id: request.params.nounce,
-    },
-  });
+  const nounce = nounces.get(request.params.nounce);
 
   if (!nounce) {
-    return response.status(404).send({
-      message:
-        "We could not find a valid request for the specified nounce. Please go through the bot again to regenerate a new one.",
-    });
+    return response.status(404).send({ message: "Nounce not found." });
   }
 
-  const { userId } = nounce.toJSON();
+  const { userId } = nounce;
 
-  const { status } = await fetchStatusFromSignature({
+  const { status, walletAddress } = await fetchStatusFromSignature({
     signature: request.query.signature,
-    userId: userId!,
+    userId: userId,
   });
 
   if (!status) {
-    return response.redirect(new URL("/membership", config.host!).toString());
+    fastify.log.warn(`Invalid signature or membership for user ID: ${userId}`);
+    const redirectURL = new URL("/membership", config.host!);
+    redirectURL.searchParams.set("signature", request.query.signature);
+    return response.redirect(redirectURL.toString());
   }
 
   const { guildId, roleId } = config;
   const guild = await client.guilds.fetch(guildId);
-  const member = await guild.members.fetch(userId!);
+  const member = await guild.members.fetch(userId);
   const role = await guild.roles.fetch(roleId);
   await member.roles.add(role as Role);
 
   const channel = await guild.channels.fetch(config.channelId);
-
   if (channel?.type === "GUILD_TEXT") {
     await channel.send({
-      content: `Welcome to the Unlock Community, ${member.user}. You can start sending messages now. Head over to <#1052336574211305574> and tell us a little more about yourself.`,
+      content: `Welcome to the ${config.serverName} Community, ${member.user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
     });
   }
 
   response.redirect(`https://discord.com/channels/${guildId}`);
-  await nounce.destroy();
+  nounces.delete(request.params.nounce);
   return;
 });
 
@@ -312,6 +307,11 @@ fastify.get<{
     signature: string;
   };
 }>("/membership", async (req, res) => {
+  if (!req.query.signature) {
+    return res
+      .status(401)
+      .send({ message: "You need signature in the query params" });
+  }
   const { signature } = req.query;
   if (!signature) {
     return res.status(401).send({
@@ -373,29 +373,25 @@ fastify.get<{
 
     if (channel?.type === "GUILD_TEXT") {
       await channel.send({
-        content: `Welcome to the Unlock Community, ${user}. You can start sending messages now. Head over to <#1052336574211305574> and tell us a little more about yourself.`,
+        content: `Welcome to the Unlock Community, ${user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
       });
     }
     return res.redirect(`https://discord.com/channels/${guildId}`);
   } catch (error: any) {
     fastify.log.error(error.message);
     return res.status(500).send({
-      message:
-        "There was an error in accessing Unlock Discord. Please contact one of the team members.",
+      message: `There was an error in accessing ${config.serverName} Discord. Please contact one of the team members.`,
     });
   }
 });
 
 fastify.addHook("onReady", async () => {
   try {
-    await sequelize.sync();
     await client.login(config.token);
 
     await restClient.put(
       Routes.applicationGuildCommands(config.clientId, config.guildId),
-      {
-        body: commands,
-      }
+      { body: commands }
     );
 
     client.on("ready", () => {
@@ -407,36 +403,25 @@ fastify.addHook("onReady", async () => {
         return;
       }
 
-      let channel = member.guild.channels.cache.get(config.channelId);
+      let channel = member.guild.channels.cache.get(config.channelId) as
+        | TextChannel
+        | undefined;
       if (!channel) {
-        const fetchedChannel = await member.guild.channels.fetch(
-          config.channelId
-        );
-        channel = fetchedChannel!;
+        channel = (await member.guild.channels.fetch(config.channelId)) as
+          | TextChannel
+          | undefined;
       }
 
-      if (channel.type !== "GUILD_TEXT") {
-        return;
+      if (channel && channel.type === "GUILD_TEXT") {
+        await channel.send({
+          content: `Hello ${member.user}! To join, type the \`/unlock\` command (don't forget the \`/\`) and press return.`,
+        });
       }
-
-      /* const row = new MessageActionRow().addComponents(
-        new MessageButton()
-          .setCustomId("unlock")
-          .setLabel("Unlock Discord")
-          .setStyle("PRIMARY")
-          .setEmoji("🔐")
-      ); */
-      await channel.send({
-        content: `Hello ${member.user}! To join, type the \`/unlock\` command (don't forget the \`/\`) and press return.`,
-        // components: [row],
-      });
     });
 
     client.on("interactionCreate", async (interaction) => {
-      if (interaction.isButton()) {
-        if (interaction.customId === "unlock") {
-          return unlockInteractionHandler(interaction);
-        }
+      if (interaction.isButton() && interaction.customId === "unlock") {
+        return unlockInteractionHandler(interaction);
       }
       if (interaction.isCommand()) {
         return UnlockCommandHandler(interaction);
@@ -455,5 +440,5 @@ fastify.listen(port, "0.0.0.0", async (error, address) => {
     fastify.log.error(error.message);
     process.exit(0);
   }
-  fastify.log.info(address);
+  fastify.log.info(`Server listening at ${address}`);
 });

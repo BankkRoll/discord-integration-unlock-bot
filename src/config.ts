@@ -2,7 +2,7 @@
 export interface LockConfig {
   name: string;
   network: number;
-  contractAddress: string; // Add this property
+  contractAddress: string;
 }
 
 export interface PaywallConfig {
@@ -13,13 +13,13 @@ export interface PaywallConfig {
 }
 
 export const paywallConfig: PaywallConfig = {
-  messageToSign: `Allow access to the CyberKitty PlayHouse Discord Community`,
+  messageToSign: `Allow access to the Discord Community`,
   pessimistic: true,
   locks: {
-    "0x127eac9e40b5e713e947af227A827530803eAAC3": {
-      name: "Bankkship",
+    "0x0000000000000000000000000000000000000000": {
+      name: "Bankkroll",
       network: 5,
-      contractAddress: "0x127eac9e40b5e713e947af227A827530803eAAC3",
+      contractAddress: "0x0000000000000000000000000000000000000000",
     },
   },
   metadataInputs: [{ name: "email", type: "email", required: true }],

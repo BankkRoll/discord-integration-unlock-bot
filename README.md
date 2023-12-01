@@ -15,7 +15,7 @@ This project integrates a Discord bot with with Unlock Protocol to manage access
    - `UNLOCKED_CHANNEL_ID`: ID of the channel to ping after success, unlocked for NFT owners.
    - `HOST`: Your server's host URL.
    - `PORT`: The port for your server.
-   - `SERVER_NAME`: The name of your Discord server.
+   - `GUILD_SERVER_NAME`: The name of your Discord server.
    - `RPC_PROVIDER_URL`: The Ethereum RPC provider URL.
 
 2. Edit the `paywallConfig` in the `src/config.ts` file to add your lock details. Replace the placeholder lock address with your contract's address and update the name and network accordingly.

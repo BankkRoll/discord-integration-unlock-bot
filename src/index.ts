@@ -28,7 +28,7 @@ import { REST } from "@discordjs/rest";
 import { Routes } from "discord-api-types/v9";
 import { commands } from "./commands";
 
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 25680;
 
 interface GetStatusFromSignatureOptions {
   signature: string;
@@ -74,6 +74,7 @@ const restClient = new REST({
 
 const fastify = Fastify({
   logger: true,
+  pluginTimeout: 20000
 });
 
 fastify.addHook("onClose", async (_, done) => {

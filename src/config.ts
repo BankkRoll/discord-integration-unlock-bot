@@ -1,11 +1,25 @@
 // src/config.ts
-export const paywallConfig = {
-  messageToSign: `Allow access to the ${process.env.SERVER_NAME!} Discord Community`,
+export interface LockConfig {
+  name: string;
+  network: number;
+  contractAddress: string;
+}
+
+export interface PaywallConfig {
+  messageToSign: string;
+  pessimistic: boolean;
+  locks: { [key: string]: LockConfig };
+  metadataInputs: Array<{ name: string; type: string; required: boolean }>;
+}
+
+export const paywallConfig: PaywallConfig = {
+  messageToSign: `Allow access to the CyberKitty PlayHouse Discord Community`,
   pessimistic: true,
   locks: {
     "0x127eac9e40b5e713e947af227A827530803eAAC3": {
       name: "Bankkship",
       network: 5,
+      contractAddress: "0x127eac9e40b5e713e947af227A827530803eAAC3",
     },
   },
   metadataInputs: [{ name: "email", type: "email", required: true }],

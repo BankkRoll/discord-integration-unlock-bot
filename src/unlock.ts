@@ -1,22 +1,36 @@
 // src/unlock.ts
-import { Web3Service } from "@unlock-protocol/unlock-js";
+import { ethers } from "ethers";
 import { config } from "./config";
-import { networks } from "@unlock-protocol/networks";
 
-export const web3Service = new Web3Service(networks);
+// Define the balanceOf function of the ERC-721 contract
+const erc721ABI = ["function balanceOf(address owner) view returns (uint256)"];
 
-export async function hasMembership(userAddress: string) {
-  for (const [lockAddress, { network }] of Object.entries<{ network: number }>(
+export async function hasMembership(userAddress: string): Promise<boolean> {
+  const provider = new ethers.providers.JsonRpcProvider(
+    process.env.RPC_PROVIDER_URL
+  );
+
+  for (const [_, { contractAddress }] of Object.entries(
     config.paywallConfig.locks
   )) {
-    const keyId = await web3Service.getTokenIdForOwner(
-      lockAddress,
-      userAddress,
-      network
-    );
-    if (keyId > 0) {
-      return true;
+    try {
+      const contract = new ethers.Contract(
+        contractAddress,
+        erc721ABI,
+        provider
+      );
+      const balance = await contract.balanceOf(userAddress);
+
+      if (balance.gt(0)) {
+        return true;
+      }
+    } catch (error) {
+      console.error(
+        `Error checking balance for address ${userAddress} on contract ${contractAddress}:`,
+        error
+      );
     }
   }
+
   return false;
 }

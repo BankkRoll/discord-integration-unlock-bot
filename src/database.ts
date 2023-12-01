@@ -22,22 +22,47 @@ export async function appendWalletAddress(
   userId: string,
   walletAddress: string
 ) {
-  let user = users.get(userId) || { id: userId, walletAddresses: [] };
+  try {
+    if (!userId || !walletAddress) {
+      throw new Error("Invalid input data");
+    }
 
-  const walletAddresses = new Set(user.walletAddresses);
-  walletAddresses.add(walletAddress);
+    let user = users.get(userId) || { id: userId, walletAddresses: new Set() };
+    user.walletAddresses.add(walletAddress);
 
-  users.set(userId, { ...user, walletAddresses: Array.from(walletAddresses) });
+    users.set(userId, {
+      ...user,
+      walletAddresses: Array.from(user.walletAddresses),
+    });
+    console.log(`Wallet address appended to user ${userId}`);
+  } catch (error) {
+    console.error(`Error appending wallet address: ${error}`);
+  }
 }
 
 // Function to create or update a nounce
-export async function upsertNounce(id: string, userId: string | null) {
-  let nounce = nounces.get(id) || { id };
+export async function upsertNounce(id: string, userId: string | null = null) {
+  try {
+    if (!id) {
+      throw new Error("Nounce ID is required");
+    }
 
-  if (userId) {
-    nounce.userId = userId;
+    let nounce = nounces.get(id) || { id };
+    if (userId) nounce.userId = userId;
+
+    nounces.set(id, nounce);
+    console.log(`Nounce ${id} upserted with userId ${userId}`);
+  } catch (error) {
+    console.error(`Error in upserting nounce: ${error}`);
   }
+}
 
-  nounces.set(id, nounce);
-  return nounce;
+// Utility function to get a user
+export function getUser(userId: string) {
+  return users.get(userId);
+}
+
+// Utility function to get a nounce
+export function getNounce(id: string) {
+  return nounces.get(id);
 }

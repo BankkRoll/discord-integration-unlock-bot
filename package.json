@@ -14,8 +14,6 @@
   "dependencies": {
     "@discordjs/rest": "^0.4.1",
     "@fastify/cookie": "^6.0.0",
-    "@unlock-protocol/networks": "^0.0.9",
-    "@unlock-protocol/unlock-js": "^0.32.17",
     "axios": "^1.2.3",
     "discord-api-types": "^0.32.1",
     "discord-oauth2": "^2.10.0",
@@ -25,7 +23,6 @@
     "fastify": "^3.29.0",
     "pg": "^8.7.3",
     "pg-hstore": "^2.3.4",
-    "sequelize": "^6.19.0",
     "zod": "^3.14.4"
   },
   "scripts": {

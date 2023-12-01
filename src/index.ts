@@ -14,7 +14,14 @@ import {
   CommandInteraction,
   TextChannel,
 } from "discord.js";
-import { users, nounces, appendWalletAddress, upsertNounce } from "./database";
+import {
+  users,
+  nounces,
+  appendWalletAddress,
+  upsertNounce,
+  getUser,
+  getNounce,
+} from "./database";
 import { hasMembership } from "./unlock";
 import { ethers } from "ethers";
 import { REST } from "@discordjs/rest";
@@ -97,14 +104,22 @@ async function unlockInteractionHandler(interaction: ButtonInteraction) {
   }
 
   const userId = interaction.member?.user.id;
-  const user = users.get(userId);
 
-  if (!user) {
+  if (!userId) {
+    console.error("Error: User ID is undefined.");
+    await interaction.editReply({
+      content: "An error occurred. Please try again.",
+    });
+    return;
+  }
+
+  const user = getUser(userId);
+
+  if (!user || !(user.walletAddresses && user.walletAddresses.length > 0)) {
     const nounceId = crypto.randomUUID();
-    upsertNounce(nounceId, userId || null);
+    upsertNounce(nounceId, userId);
 
     const checkoutURL = new URL(`/checkout/${nounceId}`, config.host!);
-
     const row = new MessageActionRow().addComponents(
       new MessageButton()
         .setStyle("LINK")

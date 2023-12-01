@@ -7,7 +7,7 @@ const erc721ABI = ["function balanceOf(address owner) view returns (uint256)"];
 
 export async function hasMembership(userAddress: string): Promise<boolean> {
   const provider = new ethers.providers.JsonRpcProvider(
-    process.env.RPC_PROVIDER_URL
+    config.rpcProviderUrl
   );
 
   for (const [_, { contractAddress }] of Object.entries(

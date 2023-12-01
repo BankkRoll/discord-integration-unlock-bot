@@ -2,7 +2,7 @@
 export interface LockConfig {
   name: string;
   network: number;
-  contractAddress: string;
+  contractAddress: string; // Add this property
 }
 
 export interface PaywallConfig {
@@ -36,4 +36,5 @@ export const config = {
   channelId: process.env.DISCORD_CHANNEL_ID!,
   serverName: process.env.SERVER_NAME!,
   unlockedChannelId: process.env.UNLOCKED_CHANNEL_ID!,
+  rpcProviderUrl: process.env.RPC_PROVIDER_URL!,
 };

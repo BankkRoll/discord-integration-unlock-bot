@@ -388,7 +388,7 @@ fastify.get<{
 
     if (channel?.type === "GUILD_TEXT") {
       await channel.send({
-        content: `Welcome to the Unlock Community, ${user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
+        content: `Welcome to the ${config.serverName}, ${user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
       });
     }
     return res.redirect(`https://discord.com/channels/${guildId}`);

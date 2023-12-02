@@ -13,6 +13,7 @@ import {
   GuildMemberRoleManager,
   CommandInteraction,
   TextChannel,
+  MessageAttachment,
 } from "discord.js";
 import {
   users,
@@ -27,6 +28,7 @@ import { ethers } from "ethers";
 import { REST } from "@discordjs/rest";
 import { Routes } from "discord-api-types/v9";
 import { commands } from "./commands";
+import { generateWelcomeCard } from "./card";
 
 const port = process.env.PORT || 25680;
 
@@ -74,7 +76,7 @@ const restClient = new REST({
 
 const fastify = Fastify({
   logger: true,
-  pluginTimeout: 20000
+  pluginTimeout: 20000,
 });
 
 fastify.addHook("onClose", async (_, done) => {
@@ -126,7 +128,7 @@ async function unlockInteractionHandler(interaction: ButtonInteraction) {
         .setStyle("LINK")
         .setLabel("Claim Membership")
         .setURL(checkoutURL.toString())
-        .setEmoji("🔑")
+        .setEmoji("1172610238575284278")
     );
     await interaction.editReply({
       content:
@@ -204,7 +206,7 @@ async function UnlockCommandHandler(interaction: CommandInteraction) {
           .setStyle("LINK")
           .setLabel("Claim Membership")
           .setURL(checkoutURL.toString())
-          .setEmoji("🔑")
+          .setEmoji("1172610238575284278")
       );
       await interaction.editReply({
         content: `You need to go through the checkout and claim a ${config.serverName} membership NFT.`,
@@ -280,13 +282,20 @@ fastify.get<{
     signature: string;
   };
 }>("/access/:nounce", async (request, response) => {
-  const nounce = nounces.get(request.params.nounce);
+  const nounceEntry = nounces.get(request.params.nounce);
 
-  if (!nounce) {
+  if (!nounceEntry) {
     return response.status(404).send({ message: "Nounce not found." });
   }
 
-  const { userId } = nounce;
+  // Mark the nounce as processed immediately to prevent duplicate processing
+  if (nounceEntry.processed) {
+    return response.status(400).send({ message: "Request already processed." });
+  }
+  nounceEntry.processed = true;
+  nounces.set(request.params.nounce, nounceEntry);
+
+  const { userId } = nounceEntry;
 
   const { status, walletAddress } = await fetchStatusFromSignature({
     signature: request.query.signature,
@@ -308,8 +317,17 @@ fastify.get<{
 
   const channel = await guild.channels.fetch(config.channelId);
   if (channel?.type === "GUILD_TEXT") {
+    const welcomeCardBuffer = await generateWelcomeCard(
+      member.user.username,
+      member.user.displayAvatarURL({ format: "png", dynamic: true, size: 1024 }),
+      member.user.id
+    );
+    const attachment = new MessageAttachment(welcomeCardBuffer, "welcome-card.png");
+
+    // Send welcome message and card together
     await channel.send({
-      content: `Welcome to the ${config.serverName} Community, ${member.user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
+      content: `Welcome to the ${config.serverName}, ${member.user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
+      files: [attachment]
     });
   }
 
@@ -317,6 +335,7 @@ fastify.get<{
   nounces.delete(request.params.nounce);
   return;
 });
+
 
 fastify.get<{
   Querystring: {

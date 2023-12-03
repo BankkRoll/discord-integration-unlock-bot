@@ -2,8 +2,10 @@
 import { ethers } from "ethers";
 import { config } from "./config";
 
-// Define the balanceOf function of the ERC-721 contract
-const erc721ABI = ["function balanceOf(address owner) view returns (uint256)"];
+const erc721ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function getHasValidKey(address _keyOwner) view returns (bool)"
+];
 
 export async function hasMembership(userAddress: string): Promise<boolean> {
   const provider = new ethers.providers.JsonRpcProvider(
@@ -33,4 +35,12 @@ export async function hasMembership(userAddress: string): Promise<boolean> {
   }
 
   return false;
+}
+
+// Verifies if the user has a valid key
+export async function doesUserHaveValidKey(userAddress: string, contractAddress: string): Promise<boolean> {
+  const provider = new ethers.providers.JsonRpcProvider(config.rpcProviderUrl);
+  const contract = new ethers.Contract(contractAddress, erc721ABI, provider);
+
+  return contract.getHasValidKey(userAddress);
 }

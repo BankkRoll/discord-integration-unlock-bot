@@ -1,5 +1,6 @@
 // src/index.ts
 import Fastify from "fastify";
+import cron from 'node-cron';
 import DiscordOauth from "discord-oauth2";
 import { config } from "./config";
 import crypto from "crypto";
@@ -14,6 +15,9 @@ import {
   CommandInteraction,
   TextChannel,
   MessageAttachment,
+  FetchMemberOptions,
+  FetchMembersOptions,
+  UserResolvable,
 } from "discord.js";
 import {
   users,
@@ -23,7 +27,7 @@ import {
   getUser,
   getNounce,
 } from "./database";
-import { hasMembership } from "./unlock";
+import { doesUserHaveValidKey, hasMembership } from "./unlock";
 import { ethers } from "ethers";
 import { REST } from "@discordjs/rest";
 import { Routes } from "discord-api-types/v9";
@@ -36,6 +40,33 @@ interface GetStatusFromSignatureOptions {
   signature: string;
   userId: string;
 }
+
+const client = new Client({
+  intents: ["GUILD_MEMBERS"],
+});
+
+const oauth = new DiscordOauth({
+  clientId: config.clientId,
+  clientSecret: config.clientSecret,
+});
+
+const restClient = new REST({
+  version: "9",
+}).setToken(config.token);
+
+const fastify = Fastify({
+  logger: true,
+});
+
+fastify.addHook("onClose", async (_, done) => {
+  await client.destroy();
+  done();
+});
+
+fastify.register(cookie, {
+  parseOptions: {},
+});
+
 
 const fetchStatusFromSignature = async ({
   signature,
@@ -61,31 +92,50 @@ const fetchStatusFromSignature = async ({
   }
 };
 
-const client = new Client({
-  intents: ["GUILD_MEMBERS"],
-});
+async function validateMemberships(client: Client, guildId: string, roleId: string) {
 
-const oauth = new DiscordOauth({
-  clientId: config.clientId,
-  clientSecret: config.clientSecret,
-});
+  const guild = await client.guilds.fetch(guildId);
+  const role = await guild.roles.fetch(roleId);
 
-const restClient = new REST({
-  version: "9",
-}).setToken(config.token);
+  if (!role) {
+    console.error(`Role with ID ${roleId} not found.`);
+    return;
+  }
 
-const fastify = Fastify({
-  logger: true,
-  pluginTimeout: 20000,
-});
+  users.forEach(async (user: { walletAddresses: string[]; id: UserResolvable | FetchMemberOptions | (FetchMembersOptions & { user: UserResolvable; }); }) => {
+    let hasValidKey = false;
 
-fastify.addHook("onClose", async (_, done) => {
-  await client.destroy();
-  done();
-});
 
-fastify.register(cookie, {
-  parseOptions: {},
+    if (user.walletAddresses && user.walletAddresses.length > 0) {
+      for (const walletAddress of user.walletAddresses) {
+        if (await doesUserHaveValidKey(walletAddress, config.paywallConfig.locks["0x127eac9e40b5e713e947af227A827530803eAAC3"].contractAddress)) {
+          hasValidKey = true;
+          break;
+        }
+      }
+    }
+
+    try {
+      const member = await guild.members.fetch(user.id);
+      if (member) {
+        const hasRole = member.roles.cache.has(roleId);
+
+        if (hasValidKey && !hasRole) {
+          console.log(`Adding role to user: ${user.id}`);
+          await member.roles.add(role);
+        } else if (!hasValidKey && hasRole) {
+          console.log(`Removing role from user: ${user.id}`);
+          await member.roles.remove(role);
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching or updating member: ${error}`);
+    }
+  });
+}
+
+cron.schedule('0 * * * *', () => {
+  validateMemberships(client, config.guildId, config.roleId);
 });
 
 async function unlockInteractionHandler(interaction: ButtonInteraction) {
@@ -438,13 +488,12 @@ fastify.addHook("onReady", async () => {
         return;
       }
 
-      let channel = member.guild.channels.cache.get(config.channelId) as
-        | TextChannel
-        | undefined;
+      let channel = member.guild.channels.cache.get(config.channelId);
       if (!channel) {
-        channel = (await member.guild.channels.fetch(config.channelId)) as
-          | TextChannel
-          | undefined;
+        const fetchedChannel = await member.guild.channels.fetch(
+          config.channelId
+        );
+        channel = fetchedChannel!;
       }
 
       if (channel && channel.type === "GUILD_TEXT") {

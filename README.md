@@ -1,7 +1,9 @@
 # Discord Integration Unlock Bot
 
 ## Overview
-This project integrates a Discord bot with with Unlock Protocol to manage access to specific Discord server channels. It verifies Discord users' NFT ownership and grants them roles accordingly.
+This bot integrates a Discord bot with the Unlock Protocol, giving access control for specific channels within a Discord server. Authenticate Discord users' ownership of NFTs associated with Unlock Protocol memberships and automatically grant them corresponding roles.
+
+- **Role Management**: The bot efficiently manages roles based on users' ownership of NFTs tied to Unlock Protocol memberships. It automatically grants or revokes access as needed, ensuring a seamless experience for members. This job diligently scans and updates roles for users who have obtained them through the bot. This meticulous approach ensures that manually assigned roles remain untouched, safeguarding the integrity of your Discord community.
 
 ## Environment Setup
 1. Create a `.env` file based on the provided `.env.example`.
@@ -59,52 +61,63 @@ npm run start
 
 ## Usage
 
-### Command: `/unlock`
+### Command: `/sendpanel` 
 
-- **Functionality**: The `/unlock` command is designed for Discord users to initiate the process of verifying their NFT ownership and gaining access to exclusive server roles.
+- **Functionality**: The `/sendpanel` command is utilized by Discord administrators to trigger the NFT ownership verification process. This replaces the need for users to type `/unlock`. Upon execution, the bot sends a custom embed with a verification button.
 
-
-```
-            +-----------------------------+
-            | User types `/unlock`        |
-            +-----------------------------+
+```markdown
+            +-------------------------------------+
+            | Admin uses `/sendpanel`             |
+            +-------------------------------------+
                         |
                         V
-            +-----------------------------+
-            | Check if user has role      |
-            +-----------------------------+
-           Yes                           No
-            |                             |
-            |                             |
-            V                             V
-+-----------------------------+   +-----------------------------+
-| Confirm existing membership |   | Guide to verify wallet      |
-| and access                  |   | address via checkout        |
-+-----------------------------+   +-----------------------------+
-                                                |
-                                                V
-                                  +-----------------------------+
-                                  | User interacts with         |
-                                  | checkout flow               |
-                                  +-----------------------------+
-                                                |
-                                                V
-                                  +-----------------------------+
-                                  | User provides signature     |
-                                  | to prove ownership          |
-                                  +-----------------------------+
-                                                |
-                                                V
-                                     +-----------------------+
-                                     | Verify signature and  |
-                                     | check NFT ownership   |
-                                     +-----------------------+
-                                                |
-                                                V
-                                    +--------------------------+
-                                    | Grant access & Send      |
-                                    | welcome message          |
-                                    +--------------------------+
+            +-------------------------------------+
+            | Bot sends an embed with a          |
+            | verification button                 |
+            +-------------------------------------+
+                        |
+                        V
+            +-------------------------------------+
+            | User clicks on the verification     |
+            | button in the embed                 |
+            +-------------------------------------+
+                        |
+                        V
+            +-------------------------------------+
+            | Check if user has role              |
+            +-------------------------------------+
+               Yes                           No
+                |                             |
+                |                             |
+                V                             V
+    +-----------------------------+   +-----------------------------+
+    | Confirm existing membership |   | Guide to verify wallet      |
+    | and access                  |   | address via checkout        |
+    +-----------------------------+   +-----------------------------+
+                                                    |
+                                                    V
+                                      +-----------------------------+
+                                      | User interacts with         |
+                                      | checkout flow               |
+                                      +-----------------------------+
+                                                    |
+                                                    V
+                                      +-----------------------------+
+                                      | User provides signature     |
+                                      | to prove ownership          |
+                                      +-----------------------------+
+                                                    |
+                                                    V
+                                        +-----------------------+
+                                        | Verify signature and  |
+                                        | check NFT ownership   |
+                                        +-----------------------+
+                                                    |
+                                                    V
+                                        +--------------------------+
+                                        | Grant access & Send      |
+                                        | welcome message/card     |
+                                        +--------------------------+
 
 ```
 

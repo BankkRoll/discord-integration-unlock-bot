@@ -1,6 +1,6 @@
 // src/index.ts
 import Fastify from "fastify";
-import cron from 'node-cron';
+import cron from "node-cron";
 import DiscordOauth from "discord-oauth2";
 import { config } from "./config";
 import crypto from "crypto";
@@ -18,6 +18,7 @@ import {
   FetchMemberOptions,
   FetchMembersOptions,
   UserResolvable,
+  MessageEmbed,
 } from "discord.js";
 import {
   users,
@@ -25,7 +26,6 @@ import {
   appendWalletAddress,
   upsertNounce,
   getUser,
-  getNounce,
 } from "./database";
 import { doesUserHaveValidKey, hasMembership } from "./unlock";
 import { ethers } from "ethers";
@@ -34,7 +34,7 @@ import { Routes } from "discord-api-types/v9";
 import { commands } from "./commands";
 import { generateWelcomeCard } from "./card";
 
-const port = process.env.PORT || 25680;
+const port = 25680;
 
 interface GetStatusFromSignatureOptions {
   signature: string;
@@ -56,17 +56,16 @@ const restClient = new REST({
 
 const fastify = Fastify({
   logger: true,
+  pluginTimeout: 30000,
 });
 
-fastify.addHook("onClose", async (_, done) => {
+fastify.addHook("onClose", async (instance) => {
   await client.destroy();
-  done();
 });
 
 fastify.register(cookie, {
   parseOptions: {},
 });
-
 
 const fetchStatusFromSignature = async ({
   signature,
@@ -92,8 +91,11 @@ const fetchStatusFromSignature = async ({
   }
 };
 
-async function validateMemberships(client: Client, guildId: string, roleId: string) {
-
+async function validateMemberships(
+  client: Client,
+  guildId: string,
+  roleId: string
+) {
   const guild = await client.guilds.fetch(guildId);
   const role = await guild.roles.fetch(roleId);
 
@@ -102,39 +104,51 @@ async function validateMemberships(client: Client, guildId: string, roleId: stri
     return;
   }
 
-  users.forEach(async (user: { walletAddresses: string[]; id: UserResolvable | FetchMemberOptions | (FetchMembersOptions & { user: UserResolvable; }); }) => {
-    let hasValidKey = false;
+  users.forEach(
+    async (user: {
+      walletAddresses: string[];
+      id:
+        | UserResolvable
+        | FetchMemberOptions
+        | (FetchMembersOptions & { user: UserResolvable });
+    }) => {
+      let hasValidKey = false;
 
-
-    if (user.walletAddresses && user.walletAddresses.length > 0) {
-      for (const walletAddress of user.walletAddresses) {
-        if (await doesUserHaveValidKey(walletAddress, config.paywallConfig.locks["0x127eac9e40b5e713e947af227A827530803eAAC3"].contractAddress)) {
-          hasValidKey = true;
-          break;
+      if (user.walletAddresses && user.walletAddresses.length > 0) {
+        for (const walletAddress of user.walletAddresses) {
+          if (
+            await doesUserHaveValidKey(
+              walletAddress,
+              config.paywallConfig.locks[
+                "0x127eac9e40b5e713e947af227A827530803eAAC3"
+              ].contractAddress
+            )
+          ) {
+            hasValidKey = true;
+            break;
+          }
         }
       }
-    }
 
-    try {
-      const member = await guild.members.fetch(user.id);
-      if (member) {
-        const hasRole = member.roles.cache.has(roleId);
+      try {
+        const member = await guild.members.fetch(user.id);
+        if (member) {
+          const hasRole = member.roles.cache.has(roleId);
 
-        if (hasValidKey && !hasRole) {
-          console.log(`Adding role to user: ${user.id}`);
-          await member.roles.add(role);
-        } else if (!hasValidKey && hasRole) {
-          console.log(`Removing role from user: ${user.id}`);
-          await member.roles.remove(role);
+          if (hasValidKey && !hasRole) {
+            await member.roles.add(role);
+          } else if (!hasValidKey && hasRole) {
+            await member.roles.remove(role);
+          }
         }
+      } catch (error) {
+        console.error(`Error fetching or updating member: ${error}`);
       }
-    } catch (error) {
-      console.error(`Error fetching or updating member: ${error}`);
     }
-  });
+  );
 }
 
-cron.schedule('0 * * * *', () => {
+cron.schedule("0 * * * *", () => {
   validateMemberships(client, config.guildId, config.roleId);
 });
 
@@ -224,73 +238,46 @@ async function UnlockCommandHandler(interaction: CommandInteraction) {
     });
   }
 
-  if (interaction.commandName === "unlock") {
-    await interaction.deferReply({
-      ephemeral: true,
+  if (interaction.commandName === "sendpanel") {
+    if (!interaction.memberPermissions?.has("ADMINISTRATOR")) {
+      return interaction.reply({
+        content: "You don't have permission to use this command.",
+        ephemeral: true,
+      });
+    }
+
+    const channelOption = interaction.options.getChannel("channel");
+    if (!channelOption || channelOption.type !== "GUILD_TEXT") {
+      return interaction.reply({
+        content: "Invalid channel specified. Please select a text channel.",
+        ephemeral: true,
+      });
+    }
+
+    const embed = new MessageEmbed()
+      .setColor("#FF0000")
+      .setTitle(`Welcome to ${config.serverName}`)
+      .setDescription("Press the button below to unlock the server.")
+      .setImage("https://i.ibb.co/G7WLXhy/imageedit-2-8933853459.jpg");
+
+    const row = new MessageActionRow().addComponents(
+      new MessageButton()
+        .setCustomId("unlockServer")
+        .setLabel("Unlock Server")
+        .setStyle("PRIMARY")
+        .setEmoji("1172610238575284278")
+    );
+
+    const textChannel = channelOption as TextChannel;
+    await textChannel.send({
+      embeds: [embed],
+      components: [row],
     });
 
-    let role = await interaction.guild?.roles.fetch(config.roleId);
-
-    const hasRole = (
-      interaction.member?.roles as GuildMemberRoleManager
-    ).cache.get(role!.id);
-
-    if (hasRole) {
-      await interaction.editReply({
-        content: `You are already a member of ${config.serverName}, ${interaction.member?.user}. You can send messages.`,
-      });
-      return;
-    }
-
-    const userId = interaction.member?.user.id;
-    const user = users.get(userId);
-
-    if (!user) {
-      const nounceId = crypto.randomUUID();
-      upsertNounce(nounceId, userId || null);
-
-      const checkoutURL = new URL(`/checkout/${nounceId}`, config.host!);
-
-      const row = new MessageActionRow().addComponents(
-        new MessageButton()
-          .setStyle("LINK")
-          .setLabel("Claim Membership")
-          .setURL(checkoutURL.toString())
-          .setEmoji("1172610238575284278")
-      );
-      await interaction.editReply({
-        content: `You need to go through the checkout and claim a ${config.serverName} membership NFT.`,
-        components: [row],
-      });
-      return;
-    }
-
-    const walletAddresses = user.walletAddresses || [];
-
-    for (const walletAddress of walletAddresses) {
-      const validMembership = await hasMembership(walletAddress);
-
-      if (validMembership) {
-        const fetchedRole =
-          interaction.guild?.roles.cache.get(config.roleId) ||
-          (await interaction.guild?.roles.fetch(config.roleId));
-
-        await (interaction.member!.roles as GuildMemberRoleManager).add(
-          fetchedRole as Role
-        );
-
-        await interaction.editReply({
-          content: `You already have a valid ${
-            config.serverName
-          } Membership. Welcome to ${config.serverName}, ${
-            interaction.member!.user
-          }. You can start sending messages now. Head over to <#${
-            config.unlockedChannelId
-          }> and tell us a little more about yourself.`,
-        });
-        return;
-      }
-    }
+    await interaction.reply({
+      content: `Panel sent to ${textChannel.name}`,
+      ephemeral: true,
+    });
   }
 }
 
@@ -338,7 +325,6 @@ fastify.get<{
     return response.status(404).send({ message: "Nounce not found." });
   }
 
-  // Mark the nounce as processed immediately to prevent duplicate processing
   if (nounceEntry.processed) {
     return response.status(400).send({ message: "Request already processed." });
   }
@@ -369,15 +355,21 @@ fastify.get<{
   if (channel?.type === "GUILD_TEXT") {
     const welcomeCardBuffer = await generateWelcomeCard(
       member.user.username,
-      member.user.displayAvatarURL({ format: "png", dynamic: true, size: 1024 }),
+      member.user.displayAvatarURL({
+        format: "png",
+        dynamic: true,
+        size: 1024,
+      }),
       member.user.id
     );
-    const attachment = new MessageAttachment(welcomeCardBuffer, "welcome-card.png");
+    const attachment = new MessageAttachment(
+      welcomeCardBuffer,
+      "welcome-card.png"
+    );
 
-    // Send welcome message and card together
     await channel.send({
       content: `Welcome to the ${config.serverName}, ${member.user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
-      files: [attachment]
+      files: [attachment],
     });
   }
 
@@ -385,7 +377,6 @@ fastify.get<{
   nounces.delete(request.params.nounce);
   return;
 });
-
 
 fastify.get<{
   Querystring: {
@@ -483,28 +474,8 @@ fastify.addHook("onReady", async () => {
       fastify.log.info(`Discord bot connected!`);
     });
 
-    client.on("guildMemberAdd", async (member) => {
-      if (member.guild.id !== config.guildId) {
-        return;
-      }
-
-      let channel = member.guild.channels.cache.get(config.channelId);
-      if (!channel) {
-        const fetchedChannel = await member.guild.channels.fetch(
-          config.channelId
-        );
-        channel = fetchedChannel!;
-      }
-
-      if (channel && channel.type === "GUILD_TEXT") {
-        await channel.send({
-          content: `Hello ${member.user}! To join, type the \`/unlock\` command (don't forget the \`/\`) and press return.`,
-        });
-      }
-    });
-
     client.on("interactionCreate", async (interaction) => {
-      if (interaction.isButton() && interaction.customId === "unlock") {
+      if (interaction.isButton() && interaction.customId === "unlockServer") {
         return unlockInteractionHandler(interaction);
       }
       if (interaction.isCommand()) {
@@ -519,10 +490,10 @@ fastify.addHook("onReady", async () => {
   }
 });
 
-fastify.listen(port, "0.0.0.0", async (error, address) => {
+fastify.listen({ port: port, host: "0.0.0.0" }, async (error, address) => {
   if (error) {
     fastify.log.error(error.message);
-    process.exit(0);
+    process.exit(1);
   }
   fastify.log.info(`Server listening at ${address}`);
 });

@@ -1,5 +1,5 @@
 // src/card.ts
-import { createCanvas, loadImage, registerFont } from 'canvas';
+import { createCanvas, loadImage } from "canvas";
 
 function randomColor() {
   let letters = "0123456789ABCDEF";
@@ -10,13 +10,17 @@ function randomColor() {
   return color;
 }
 
-export async function generateWelcomeCard(username: string, avatarUrl: string, memberId: string): Promise<Buffer> {
+export async function generateWelcomeCard(
+  username: string,
+  avatarUrl: string,
+  memberId: string
+): Promise<Buffer> {
   const width = 600;
   const height = 250;
   const cornerRadius = 20;
   const avatarRadius = 70;
   const canvas = createCanvas(width, height);
-  const context = canvas.getContext('2d');
+  const context = canvas.getContext("2d");
 
   // Gradient Background
   const [randomColor1, randomColor2, randomColor3, randomColor4] = [
@@ -57,34 +61,40 @@ export async function generateWelcomeCard(username: string, avatarUrl: string, m
     context.arc(centerX, centerY, avatarRadius, 0, Math.PI * 2, true);
     context.closePath();
     context.clip();
-    context.drawImage(avatar, centerX - avatarRadius, centerY - avatarRadius, avatarRadius * 2, avatarRadius * 2);
+    context.drawImage(
+      avatar,
+      centerX - avatarRadius,
+      centerY - avatarRadius,
+      avatarRadius * 2,
+      avatarRadius * 2
+    );
 
     // Rounded Border for Avatar
     context.beginPath();
     context.arc(centerX, centerY, avatarRadius, 0, Math.PI * 2, true);
     context.lineWidth = 6;
-    context.strokeStyle = '#fff';
+    context.strokeStyle = "#fff";
     context.stroke();
     context.restore();
   } catch (error) {
-    console.error('Error loading avatar:', error);
+    console.error("Error loading avatar:", error);
   }
 
   const bottomPadding = 30;
   const textYPosition = height - bottomPadding;
 
   // Custom Font and Text Styling
-  context.font = 'bold 24pt Sans';
-  context.textAlign = 'center';
-  context.shadowColor = 'black';
+  context.font = "bold 24pt Sans";
+  context.textAlign = "center";
+  context.shadowColor = "black";
   context.shadowBlur = 0;
-  context.fillStyle = '#ffffff';
+  context.fillStyle = "#ffffff";
   context.fillText(username, centerX, textYPosition);
 
   context.shadowBlur = 0;
-  context.font = '20pt Sans';
+  context.font = "20pt Sans";
   const topPadding = 30;
   context.fillText(`Welcome to CyberKitty PlayHouse!`, centerX, topPadding);
 
-  return canvas.toBuffer('image/png');
+  return canvas.toBuffer("image/png");
 }

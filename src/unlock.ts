@@ -4,13 +4,11 @@ import { config } from "./config";
 
 const erc721ABI = [
   "function balanceOf(address owner) view returns (uint256)",
-  "function getHasValidKey(address _keyOwner) view returns (bool)"
+  "function getHasValidKey(address _keyOwner) view returns (bool)",
 ];
 
 export async function hasMembership(userAddress: string): Promise<boolean> {
-  const provider = new ethers.providers.JsonRpcProvider(
-    config.rpcProviderUrl
-  );
+  const provider = new ethers.providers.JsonRpcProvider(config.rpcProviderUrl);
 
   for (const [_, { contractAddress }] of Object.entries(
     config.paywallConfig.locks
@@ -38,7 +36,10 @@ export async function hasMembership(userAddress: string): Promise<boolean> {
 }
 
 // Verifies if the user has a valid key
-export async function doesUserHaveValidKey(userAddress: string, contractAddress: string): Promise<boolean> {
+export async function doesUserHaveValidKey(
+  userAddress: string,
+  contractAddress: string
+): Promise<boolean> {
   const provider = new ethers.providers.JsonRpcProvider(config.rpcProviderUrl);
   const contract = new ethers.Contract(contractAddress, erc721ABI, provider);
 

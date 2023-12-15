@@ -16,7 +16,6 @@ This bot integrates a Discord bot with the Unlock Protocol, giving access contro
    - `DISCORD_CHANNEL_ID`: The ID of the Discord channel for using the unlock command.
    - `UNLOCKED_CHANNEL_ID`: ID of the channel to ping after success, unlocked for NFT owners.
    - `HOST`: Your server's host URL.
-   - `PORT`: The port for your server.
    - `GUILD_SERVER_NAME`: The name of your Discord server.
    - `RPC_PROVIDER_URL`: The Ethereum RPC provider URL.
 
@@ -61,9 +60,9 @@ npm run start
 
 ## Usage
 
-### Command: `/sendpanel` 
+### Command: `/sendpanel <#channel>`
 
-- **Functionality**: The `/sendpanel` command is utilized by Discord administrators to trigger the NFT ownership verification process. This replaces the need for users to type `/unlock`. Upon execution, the bot sends a custom embed with a verification button.
+- **Functionality**: The `/sendpanel <#channel>` command is utilized by Discord administrators to trigger the NFT ownership verification process. This replaces the need for users to type `/unlock`. Upon execution, the bot sends a custom embed with a verification button.
 
 ```markdown
             +-------------------------------------+
@@ -115,8 +114,8 @@ npm run start
                                                     |
                                                     V
                                         +--------------------------+
-                                        | Grant access & Send      |
-                                        | welcome message/card     |
+                                        | Grant access & Sends     |
+                                        | welcome message          |
                                         +--------------------------+
 
 ```

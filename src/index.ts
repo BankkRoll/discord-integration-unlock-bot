@@ -32,9 +32,8 @@ import { ethers } from "ethers";
 import { REST } from "@discordjs/rest";
 import { Routes } from "discord-api-types/v9";
 import { commands } from "./commands";
-import { generateWelcomeCard } from "./card";
 
-const port = 25680;
+const port = 8080;
 
 interface GetStatusFromSignatureOptions {
   signature: string;
@@ -147,7 +146,6 @@ async function validateMemberships(
     }
   );
 }
-
 cron.schedule("0 * * * *", () => {
   validateMemberships(client, config.guildId, config.roleId);
 });
@@ -158,44 +156,58 @@ async function unlockInteractionHandler(interaction: ButtonInteraction) {
 
     if (!interaction.guild) {
       console.error("Guild is undefined.");
-      await interaction.editReply({
-        content: "An error occurred with the guild. Please try again.",
-      });
+      const errorEmbed = new MessageEmbed()
+        .setColor("#FF0000")
+        .setTitle("Error")
+        .setDescription("An error occurred with the guild. Please try again.");
+      await interaction.editReply({ embeds: [errorEmbed] });
       return;
     }
 
     const role = await interaction.guild.roles.fetch(config.roleId);
     if (!role) {
       console.error("Role is undefined.");
-      await interaction.editReply({
-        content: "An error occurred with the role. Please try again.",
-      });
+      const roleErrorEmbed = new MessageEmbed()
+        .setColor("#FF0000")
+        .setTitle("Error")
+        .setDescription("An error occurred with the role. Please try again.");
+      await interaction.editReply({ embeds: [roleErrorEmbed] });
       return;
     }
 
     const memberRoles = interaction.member?.roles as GuildMemberRoleManager;
     if (!memberRoles) {
       console.error("Member roles are undefined.");
-      await interaction.editReply({
-        content: "An error occurred with member roles. Please try again.",
-      });
+      const memberRolesErrorEmbed = new MessageEmbed()
+        .setColor("#FF0000")
+        .setTitle("Error")
+        .setDescription(
+          "An error occurred with member roles. Please try again."
+        );
+      await interaction.editReply({ embeds: [memberRolesErrorEmbed] });
       return;
     }
 
     const hasRole = memberRoles.cache.get(role.id);
     if (hasRole) {
-      await interaction.editReply({
-        content: `You are already a member of ${config.serverName}, ${interaction.member?.user}. You can send messages.`,
-      });
+      const alreadyMemberEmbed = new MessageEmbed()
+        .setColor("#00FF00")
+        .setTitle("Already a Member")
+        .setDescription(
+          `You are already a member of ${config.serverName}, ${interaction.member?.user}. You can send messages.`
+        );
+      await interaction.editReply({ embeds: [alreadyMemberEmbed] });
       return;
     }
 
     const userId = interaction.member?.user.id;
     if (!userId) {
       console.error("User ID is undefined.");
-      await interaction.editReply({
-        content: "An error occurred. Please try again.",
-      });
+      const userIdErrorEmbed = new MessageEmbed()
+        .setColor("#FF0000")
+        .setTitle("Error")
+        .setDescription("An error occurred. Please try again.");
+      await interaction.editReply({ embeds: [userIdErrorEmbed] });
       return;
     }
 
@@ -205,15 +217,22 @@ async function unlockInteractionHandler(interaction: ButtonInteraction) {
       upsertNounce(nounceId, userId);
 
       const checkoutURL = new URL(`/checkout/${nounceId}`, config.host!);
+      const checkoutEmbed = new MessageEmbed()
+        .setColor("#FFFF00")
+        .setTitle("Membership Required")
+        .setDescription(
+          "You need to go through the checkout and claim a membership NFT."
+        );
+
       const row = new MessageActionRow().addComponents(
         new MessageButton()
           .setStyle("LINK")
           .setLabel("Claim Membership")
           .setURL(checkoutURL.toString())
-          .setEmoji("1172610238575284278")
+          .setEmoji("🔑")
       );
       await interaction.editReply({
-        content: "You need to go through the checkout and claim a membership NFT.",
+        embeds: [checkoutEmbed],
         components: [row],
       });
       return;
@@ -224,30 +243,68 @@ async function unlockInteractionHandler(interaction: ButtonInteraction) {
       const validMembership = await hasMembership(walletAddress);
       if (validMembership) {
         await memberRoles.add(role);
-        await interaction.editReply({
-          content: `You already have a valid ${config.serverName} Membership. Welcome to ${config.serverName}, ${interaction.member!.user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
-        });
+        const validMembershipEmbed = new MessageEmbed()
+          .setColor("#00FF00")
+          .setTitle("Valid Membership")
+          .setDescription(
+            `You already have a valid ${
+              config.serverName
+            } Membership. Welcome to ${config.serverName}, ${
+              interaction.member!.user
+            }. You can start sending messages now. Head over to <#${
+              config.unlockedChannelId
+            }> and tell us a little more about yourself.`
+          );
+        await interaction.editReply({ embeds: [validMembershipEmbed] });
         return;
       }
     }
   } catch (error) {
     console.error("Error in unlockInteractionHandler:", error);
-    await interaction.editReply({
-      content: "An error occurred. Please try again.",
-    });
+    const errorEmbed = new MessageEmbed()
+      .setColor("#FF0000")
+      .setTitle("Error")
+      .setDescription("An error occurred. Please try again.");
+    await interaction.editReply({ embeds: [errorEmbed] });
   }
 }
 
-
 async function UnlockCommandHandler(interaction: CommandInteraction) {
   if (interaction.commandName === "ping") {
-    return interaction.reply({
+    const startTime = Date.now();
+
+    await interaction.reply({
       ephemeral: true,
-      content: "Pong!",
+      content: "Calculating ping...",
     });
+
+    const latency = Date.now() - startTime;
+
+    const pingEmbed = new MessageEmbed()
+      .setColor("#0099ff")
+      .setTitle("🏓 Pong!")
+      .addFields({
+        name: "Response Time",
+        value: `${latency}ms`,
+        inline: true,
+      });
+
+    await interaction.editReply({
+      content: null,
+      embeds: [pingEmbed],
+    });
+
+    return;
   }
 
   if (interaction.commandName === "sendpanel") {
+    if (!interaction.guild) {
+      return interaction.reply({
+        content: "This command can only be used in a server.",
+        ephemeral: true,
+      });
+    }
+
     if (!interaction.memberPermissions?.has("ADMINISTRATOR")) {
       return interaction.reply({
         content: "You don't have permission to use this command.",
@@ -267,22 +324,22 @@ async function UnlockCommandHandler(interaction: CommandInteraction) {
       .setColor("#FF0000")
       .setTitle(`Welcome to ${config.serverName}`)
       .setDescription("Press the button below to unlock the server.")
-      .setImage("https://i.ibb.co/G7WLXhy/imageedit-2-8933853459.jpg");
+      .setThumbnail(
+        "https://avatars.githubusercontent.com/u/36645693?s=200&v=4"
+      );
 
     const row = new MessageActionRow().addComponents(
       new MessageButton()
         .setCustomId("unlockServer")
         .setLabel("Unlock Server")
         .setStyle("PRIMARY")
-        .setEmoji("1172610238575284278")
+        .setEmoji("🔑")
     );
 
     const textChannel = channelOption as TextChannel;
-    await textChannel.send({
-      embeds: [embed],
-      components: [row],
-    });
+    await textChannel.send({ embeds: [embed], components: [row] });
 
+    // Confirm the action to the user
     await interaction.reply({
       content: `Panel sent to ${textChannel.name}`,
       ephemeral: true,
@@ -362,23 +419,8 @@ fastify.get<{
 
   const channel = await guild.channels.fetch(config.channelId);
   if (channel?.type === "GUILD_TEXT") {
-    const welcomeCardBuffer = await generateWelcomeCard(
-      member.user.username,
-      member.user.displayAvatarURL({
-        format: "png",
-        dynamic: true,
-        size: 1024,
-      }),
-      member.user.id
-    );
-    const attachment = new MessageAttachment(
-      welcomeCardBuffer,
-      "welcome-card.png"
-    );
-
     await channel.send({
-      content: `Welcome to the ${config.serverName}, ${member.user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
-      files: [attachment],
+      content: `Welcome to **${config.serverName}**, ${member.user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
     });
   }
 

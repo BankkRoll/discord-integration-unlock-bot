@@ -16,10 +16,10 @@ export const paywallConfig: PaywallConfig = {
   messageToSign: `Allow access to the Discord Community`,
   pessimistic: true,
   locks: {
-    "0x0000000000000000000000000000000000000000": {
-      name: "Bankkroll",
+    "0x000000000000000000000000000000000000000000": {
+      name: "BankkTester",
       network: 5,
-      contractAddress: "0x0000000000000000000000000000000000000000",
+      contractAddress: "0x000000000000000000000000000000000000000000",
     },
   },
   metadataInputs: [{ name: "email", type: "email", required: true }],

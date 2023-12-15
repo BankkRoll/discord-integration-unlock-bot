@@ -1,5 +1,4 @@
-// src/card.ts
-import { createCanvas, loadImage } from "canvas";
+import { createCanvas, loadImage, CanvasRenderingContext2D } from "canvas";
 
 function randomColor() {
   let letters = "0123456789ABCDEF";
@@ -8,6 +7,22 @@ function randomColor() {
     color += letters[Math.floor(Math.random() * 16)];
   }
   return color;
+}
+
+async function loadAndDrawIcons(
+  context: CanvasRenderingContext2D,
+  iconUrls: string[],
+  positions: { x: number; y: number; size: number }[]
+) {
+  for (let position of positions) {
+    try {
+      const iconUrl = iconUrls[Math.floor(Math.random() * iconUrls.length)];
+      const icon = await loadImage(iconUrl);
+      context.drawImage(icon, position.x, position.y, position.size, position.size);
+    } catch (error) {
+      console.error("Error loading icon:", error);
+    }
+  }
 }
 
 export async function generateWelcomeCard(
@@ -22,7 +37,6 @@ export async function generateWelcomeCard(
   const canvas = createCanvas(width, height);
   const context = canvas.getContext("2d");
 
-  // Gradient Background
   const [randomColor1, randomColor2, randomColor3, randomColor4] = [
     randomColor(),
     randomColor(),
@@ -36,7 +50,6 @@ export async function generateWelcomeCard(
   gradient.addColorStop(1, randomColor4);
   context.fillStyle = gradient;
 
-  // Rounded Corners for Card
   context.beginPath();
   context.moveTo(cornerRadius, 0);
   context.lineTo(width - cornerRadius, 0);
@@ -49,6 +62,29 @@ export async function generateWelcomeCard(
   context.quadraticCurveTo(0, 0, cornerRadius, 0);
   context.closePath();
   context.fill();
+
+  const iconUrls = [
+    "https://i.ibb.co/4Zc9ztX/REDKEY.png",
+    "https://i.ibb.co/Nt17fmd/CHROMEKEY.png",
+  ];
+  const iconSize = 30;
+  const iconSpacing = (height - iconSize * 3) / 4;
+  const iconPositions = [
+    // Left side icons
+    { x: 20, y: iconSpacing, size: iconSize },
+    { x: 20, y: iconSpacing * 2 + iconSize, size: iconSize },
+    { x: 20, y: iconSpacing * 3 + iconSize * 2, size: iconSize },
+    // Right side icons
+    { x: width - iconSize - 20, y: iconSpacing, size: iconSize },
+    { x: width - iconSize - 20, y: iconSpacing * 2 + iconSize, size: iconSize },
+    {
+      x: width - iconSize - 20,
+      y: iconSpacing * 3 + iconSize * 2,
+      size: iconSize,
+    },
+  ];
+
+  await loadAndDrawIcons(context, iconUrls, iconPositions);
 
   const centerX = width / 2;
   const centerY = height / 2;
@@ -69,7 +105,6 @@ export async function generateWelcomeCard(
       avatarRadius * 2
     );
 
-    // Rounded Border for Avatar
     context.beginPath();
     context.arc(centerX, centerY, avatarRadius, 0, Math.PI * 2, true);
     context.lineWidth = 6;
@@ -80,21 +115,33 @@ export async function generateWelcomeCard(
     console.error("Error loading avatar:", error);
   }
 
-  const bottomPadding = 30;
+  const bottomPadding = 20;
   const textYPosition = height - bottomPadding;
 
-  // Custom Font and Text Styling
   context.font = "bold 24pt Sans";
   context.textAlign = "center";
-  context.shadowColor = "black";
-  context.shadowBlur = 0;
+  context.shadowColor = "rgba(0, 0, 0, 0.7)";
+  context.shadowBlur = 4;
+  context.shadowOffsetX = 2;
+  context.shadowOffsetY = 2;
   context.fillStyle = "#ffffff";
   context.fillText(username, centerX, textYPosition);
 
   context.shadowBlur = 0;
-  context.font = "20pt Sans";
+  context.shadowOffsetX = 0;
+  context.shadowOffsetY = 0;
+
+  context.font = "bold 20pt Sans";
   const topPadding = 30;
+  context.shadowColor = "rgba(0, 0, 0, 0.7)";
+  context.shadowBlur = 4;
+  context.shadowOffsetX = 2;
+  context.shadowOffsetY = 2;
   context.fillText(`Welcome to CyberKitty PlayHouse!`, centerX, topPadding);
+
+  context.shadowBlur = 0;
+  context.shadowOffsetX = 0;
+  context.shadowOffsetY = 0;
 
   return canvas.toBuffer("image/png");
 }

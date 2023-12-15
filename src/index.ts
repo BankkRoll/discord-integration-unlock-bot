@@ -120,7 +120,7 @@ async function validateMemberships(
             await doesUserHaveValidKey(
               walletAddress,
               config.paywallConfig.locks[
-                "0x127eac9e40b5e713e947af227A827530803eAAC3"
+                "0x0947a1c28C7c91128E37cB89538A82E2396A1e87"
               ].contractAddress
             )
           ) {
@@ -153,82 +153,91 @@ cron.schedule("0 * * * *", () => {
 });
 
 async function unlockInteractionHandler(interaction: ButtonInteraction) {
-  await interaction.deferReply({
-    ephemeral: true,
-  });
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  let role = await interaction.guild?.roles.fetch(config.roleId);
-
-  const hasRole = (
-    interaction.member?.roles as GuildMemberRoleManager
-  ).cache.get(role!.id);
-
-  if (hasRole) {
-    await interaction.editReply({
-      content: `You are already a member of ${config.serverName}, ${interaction.member?.user}. You can send messages.`,
-    });
-    return;
-  }
-
-  const userId = interaction.member?.user.id;
-
-  if (!userId) {
-    console.error("Error: User ID is undefined.");
-    await interaction.editReply({
-      content: "An error occurred. Please try again.",
-    });
-    return;
-  }
-
-  const user = getUser(userId);
-
-  if (!user || !(user.walletAddresses && user.walletAddresses.length > 0)) {
-    const nounceId = crypto.randomUUID();
-    upsertNounce(nounceId, userId);
-
-    const checkoutURL = new URL(`/checkout/${nounceId}`, config.host!);
-    const row = new MessageActionRow().addComponents(
-      new MessageButton()
-        .setStyle("LINK")
-        .setLabel("Claim Membership")
-        .setURL(checkoutURL.toString())
-        .setEmoji("1172610238575284278")
-    );
-    await interaction.editReply({
-      content:
-        "You need to go through the checkout and claim a membership NFT.",
-      components: [row],
-    });
-    return;
-  }
-
-  const walletAddresses = user.walletAddresses || [];
-
-  for (const walletAddress of walletAddresses) {
-    const validMembership = await hasMembership(walletAddress);
-
-    if (validMembership) {
-      const role =
-        interaction.guild?.roles.cache.get(config.roleId) ||
-        (await interaction.guild?.roles.fetch(config.roleId));
-
-      await (interaction.member!.roles as GuildMemberRoleManager).add(
-        role as Role
-      );
-
+    if (!interaction.guild) {
+      console.error("Guild is undefined.");
       await interaction.editReply({
-        content: `You already have a valid ${
-          config.serverName
-        } Membership. Welcome to ${config.serverName}, ${
-          interaction.member!.user
-        }. You can start sending messages now. Head over to <#${
-          config.unlockedChannelId
-        }> and tell us a little more about yourself.`,
+        content: "An error occurred with the guild. Please try again.",
       });
       return;
     }
+
+    const role = await interaction.guild.roles.fetch(config.roleId);
+    if (!role) {
+      console.error("Role is undefined.");
+      await interaction.editReply({
+        content: "An error occurred with the role. Please try again.",
+      });
+      return;
+    }
+
+    const memberRoles = interaction.member?.roles as GuildMemberRoleManager;
+    if (!memberRoles) {
+      console.error("Member roles are undefined.");
+      await interaction.editReply({
+        content: "An error occurred with member roles. Please try again.",
+      });
+      return;
+    }
+
+    const hasRole = memberRoles.cache.get(role.id);
+    if (hasRole) {
+      await interaction.editReply({
+        content: `You are already a member of ${config.serverName}, ${interaction.member?.user}. You can send messages.`,
+      });
+      return;
+    }
+
+    const userId = interaction.member?.user.id;
+    if (!userId) {
+      console.error("User ID is undefined.");
+      await interaction.editReply({
+        content: "An error occurred. Please try again.",
+      });
+      return;
+    }
+
+    const user = getUser(userId);
+    if (!user || !(user.walletAddresses && user.walletAddresses.length > 0)) {
+      const nounceId = crypto.randomUUID();
+      upsertNounce(nounceId, userId);
+
+      const checkoutURL = new URL(`/checkout/${nounceId}`, config.host!);
+      const row = new MessageActionRow().addComponents(
+        new MessageButton()
+          .setStyle("LINK")
+          .setLabel("Claim Membership")
+          .setURL(checkoutURL.toString())
+          .setEmoji("1172610238575284278")
+      );
+      await interaction.editReply({
+        content: "You need to go through the checkout and claim a membership NFT.",
+        components: [row],
+      });
+      return;
+    }
+
+    const walletAddresses = user.walletAddresses || [];
+    for (const walletAddress of walletAddresses) {
+      const validMembership = await hasMembership(walletAddress);
+      if (validMembership) {
+        await memberRoles.add(role);
+        await interaction.editReply({
+          content: `You already have a valid ${config.serverName} Membership. Welcome to ${config.serverName}, ${interaction.member!.user}. You can start sending messages now. Head over to <#${config.unlockedChannelId}> and tell us a little more about yourself.`,
+        });
+        return;
+      }
+    }
+  } catch (error) {
+    console.error("Error in unlockInteractionHandler:", error);
+    await interaction.editReply({
+      content: "An error occurred. Please try again.",
+    });
   }
 }
+
 
 async function UnlockCommandHandler(interaction: CommandInteraction) {
   if (interaction.commandName === "ping") {
